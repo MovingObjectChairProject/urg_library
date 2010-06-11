@@ -1,0 +1,31 @@
+#ifndef URG_ERRNO_H
+#define URG_ERRNO_H
+
+/*!
+  \file
+  \brief URG ライブラリのエラー定義
+
+  \author Satofumi KAMIMURA
+
+  $Id$
+*/
+
+enum {
+    URG_NO_ERROR = 0,
+    URG_UNKNOWN_ERROR = -1,
+    URG_NOT_CONNECTED = -2,
+    URG_NOT_IMPLEMENTED = -3,
+    URG_INVALID_RESPONSE = -4,
+    URG_RECEIVE_ERROR = -5,
+    URG_CHECKSUM_ERROR = -6,
+    URG_COMMON_ERROR_LAST,
+
+    URG_SERIAL_OPEN_ERROR = (URG_COMMON_ERROR_LAST -1) -1,
+    URG_ETHERNET_OPEN_ERROR = (URG_COMMON_ERROR_LAST -1) -2,
+    URG_SCANNING_PARAMETER_ERROR = (URG_COMMON_ERROR_LAST -1) -3,
+    URG_DATA_SIZE_PARAMETER_ERROR = (URG_COMMON_ERROR_LAST -1) -4,
+
+    // !!!
+};
+
+#endif /* !URG_ERRNO_H */
