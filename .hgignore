@@ -1,0 +1,14 @@
+syntax: glob
+*~
+*.o
+*.a
+generated_html
+get_distance
+get_distance_intensity
+get_multiecho
+calculate_xy
+sync_time_stamp
+sensor_parameter
+test/urg_sensor_test
+test/serial_test
+test/urg04lx_parameter_test
