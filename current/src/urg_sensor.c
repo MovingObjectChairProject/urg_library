@@ -18,6 +18,7 @@
 #include "urg_sensor.h"
 #include "urg_errno.h"
 #include "urg_utils.h"
+#include "safety_crc.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -33,6 +34,7 @@ enum {
     URG_TRUE = 1,
 
     BUFFER_SIZE = 64 + 2 + 6,
+    SAFETY_BUFFER_SIZE = 1024 * 9 + 512,
 
     EXPECTED_END = -1,
 
@@ -124,7 +126,7 @@ static int scip_response(urg_t *urg, const char* command,
             char checksum = buffer[n - 1];
             if ((checksum != scip_checksum(buffer, n - 1)) &&
                 (checksum != scip_checksum(buffer, n - 2))) {
-                return set_errno_and_return(urg, URG_CHECKSUM_ERROR);
+                //return set_errno_and_return(urg, URG_CHECKSUM_ERROR); // <-- Due to a bug in VV, PP and II impelentation, checksum verification is disabled
             }
         }
 
@@ -155,6 +157,69 @@ static int scip_response(urg_t *urg, const char* command,
     } while (n > 0);
 
     return (ret < 0) ? ret : (line_number - 1);
+}
+
+// \~japanese 受信した応答の行数を返す
+// \~english Returns the number of lines received
+static int safety_response(urg_t *urg, const char* command,
+                         const int expected_ret[], int timeout,
+                         char *receive_buffer, int receive_buffer_max_size)
+{
+	enum {
+		stx = 0x02,
+        stx_size = 1,
+		etx = 0x03,
+		etx_size = 1,
+        command_size = 4,
+        header_size = 2,
+        status_size = 2,
+        crc_size = 4,
+    };
+
+    char *p = receive_buffer;
+    char buffer[SAFETY_BUFFER_SIZE];
+    int ret = URG_UNKNOWN_ERROR;
+	unsigned short crc = 0;
+	int n = 0;
+
+    int write_size = (int)strlen(command);
+	int size = stx_size + command_size + write_size + crc_size + etx_size;
+
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%0*X%s", command_size, size, command);
+	crc = safety_calc_crc(buffer, command_size + write_size);
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%c%0*X%s%0*X%c", stx, command_size, size, command, crc_size, crc, etx);
+    n = connection_write(&urg->connection, buffer, size);
+
+    if (n != write_size) {
+        return set_errno_and_return(urg, URG_SEND_ERROR);
+    }
+
+    if (p) {
+        *p = '\0';
+    }
+
+    n = connection_readline(&urg->connection, buffer, SAFETY_BUFFER_SIZE, timeout);
+    if (n < 0) {
+        return set_errno_and_return(urg, URG_NO_RESPONSE);
+
+    }else if(buffer[0] != stx){
+		return set_errno_and_return(urg, URG_INVALID_RESPONSE);
+	}
+
+	if (p && (n < receive_buffer_max_size)) {
+		memcpy(p, buffer + 1, n - 1);
+		p += n - 1;
+		*p++ = '\0';
+	}
+
+	if (n > 0) {
+		unsigned short checksum = strtol(&buffer[n - crc_size], NULL, 16);;
+		if (checksum != safety_calc_crc(buffer + 1, n - crc_size - 1)) {
+			return set_errno_and_return(urg, URG_CHECKSUM_ERROR);
+		}
+	}
+	
+    return 1;
 }
 
 static void clear_urg_communication_buffer(urg_t *urg, int timeout)
@@ -755,6 +820,156 @@ static int receive_data(urg_t *urg, long data[], unsigned short intensity[],
     return ret;
 }
 
+//! \~japanese 距離データの取得  \~english Gets measurement data
+static int safety_receive_data(urg_t *urg, long data[], unsigned short intensity[],
+								safety_data_t *safety_data)
+{
+	enum {
+		stx = 0x02,
+        stx_size = 1,
+		etx = 0x03,
+		etx_size = 1,
+        command_size = 4,
+		body_size = 4,
+        crc_size = 4,
+		body_offset = 1 + 4 + 4 + 2,
+    };
+    urg_measurement_type_t type;
+    char buffer[SAFETY_BUFFER_SIZE];
+	char param[5];
+	char *data_buffer = 0;
+    int ret = 0;
+    int n, i;
+	unsigned short crc = 0;
+    int extended_timeout = urg->timeout
+        + 2 * (urg->scan_usec * (urg->scanning_skip_scan) / 1000);
+
+    // \~japanese エコーバックの取得
+    // \~english Gets the echoback
+    n = connection_readline(&urg->connection,
+                            buffer, SAFETY_BUFFER_SIZE, extended_timeout * 10);
+    if (n <= 0) {
+        return set_errno_and_return(urg, URG_NO_RESPONSE);
+    }
+
+	buffer[n] = '\0';
+
+	if ((n < 10) || (buffer[0] != stx)) {
+        return set_errno_and_return(urg, URG_INVALID_RESPONSE);
+    }
+
+    // \~japanese エコーバックの解析
+    // \~english Checks the echoback
+	if ((buffer[8] == '0') || (buffer[8] == '2')){
+		type = URG_DISTANCE;
+	} else if ((buffer[8] == '1') || (buffer[8] == '4')){
+		type = URG_DISTANCE_INTENSITY;
+	} else if ((buffer[8] == '3') || (buffer[8] == '5')){
+		type = URG_STOP;
+	} else {
+		type = URG_UNKNOWN;
+	}
+
+	crc = strtol(&buffer[n - crc_size - 1], NULL, 16);
+	if (crc != safety_calc_crc(&buffer[1], n - crc_size - 1)) {
+        // \~japanese チェックサムの評価
+        // \~english Validates the checksum
+        return set_errno_and_return(urg, URG_CHECKSUM_ERROR);
+    }
+
+    if (type == URG_STOP) {
+        // \~japanese 最後の改行を読み捨て、正常応答として処理する
+        // \~english Ignore the last end-of-line and return as successful
+        n = connection_readline(&urg->connection,
+                                buffer, SAFETY_BUFFER_SIZE, urg->timeout);
+        if (n == 0) {
+            return 0;
+        } else {
+            return set_errno_and_return(urg, URG_INVALID_RESPONSE);
+        }
+    }
+
+	safety_data->is_setting = buffer[body_offset] == '1' ? 1 : 0;
+
+	strncpy(param, &buffer[body_offset +1], 2);
+	param[2] = '\0';
+	safety_data->area_number = strtol(param, NULL, 16);
+
+	safety_data->is_error_detected = buffer[body_offset + 3] == '1' ? 1 : 0;
+
+	strncpy(param, &buffer[body_offset +4], 2);
+	param[2] = '\0';
+	safety_data->error_code = strtol(param, NULL, 16);
+
+	safety_data->is_lockout = buffer[body_offset + 6] == '1' ? 1 : 0;
+
+	safety_data->is_ossd1_1_on = buffer[body_offset + 7] == '1' ? 1 : 0;
+	safety_data->is_ossd1_2_on = buffer[body_offset + 8] == '1' ? 1 : 0;
+
+	safety_data->is_warning1_1_on = buffer[body_offset + 9] == '1' ? 1 : 0;	
+	safety_data->is_warning1_2_on = buffer[body_offset + 10] == '1' ? 1 : 0;
+
+	safety_data->is_ossd2_1_on = buffer[body_offset + 11] == '1' ? 1 : 0;
+	safety_data->is_ossd2_2_on = buffer[body_offset + 12] == '1' ? 1 : 0;
+
+	safety_data->is_warning2_1_on = buffer[body_offset + 13] == '1' ? 1 : 0;	
+	safety_data->is_warning2_2_on = buffer[body_offset + 14] == '1' ? 1 : 0;
+		
+	safety_data->is_mut_over1_on = buffer[body_offset + 15] == '1' ? 1 : 0;
+	safety_data->is_mut_over2_on = buffer[body_offset + 16] == '1' ? 1 : 0;
+
+	safety_data->is_reset_req1_on = buffer[body_offset + 17] == '1' ? 1 : 0;
+	safety_data->is_reset_req2_on = buffer[body_offset + 18] == '1' ? 1 : 0;
+
+	strncpy(param, &buffer[body_offset +19], 4);
+	param[4] = '\0';
+	safety_data->encoder_speed = strtol(param, NULL, 16);
+
+	data_buffer = &buffer[body_offset + 23 + 16];
+
+    // \~japanese データの取得
+    // \~english Gets the measurement data
+    switch (type) {
+    case URG_DISTANCE:
+    case URG_MULTIECHO:
+		for(i = 0; i < 1081; i++){
+			strncpy(param, &data_buffer[i*4], 4);
+			param[4] = '\0';
+			data[i] = strtol(param, NULL, 16);
+		}
+		ret = 1081;
+        break;
+
+    case URG_DISTANCE_INTENSITY:
+    case URG_MULTIECHO_INTENSITY:
+		for(i = 0; i < 1081; i++){
+			strncpy(param, data_buffer, 4);
+			param[4] = '\0';
+			data[i] = strtol(param, NULL, 16);
+			data_buffer += 4;
+		}
+		if(intensity){
+			for(i = 0; i < 1081; i++){
+				strncpy(param, data_buffer, 4);
+				param[4] = '\0';
+				intensity[i] = strtol(param, NULL, 16);
+				data_buffer += 4;
+			}
+		}
+		ret = 1081;
+        break;
+
+    case URG_STOP:
+    case URG_UNKNOWN:
+        ret = 0;
+        break;
+    }
+
+	urg->received_first_index = urg->first_data_index;
+	urg->received_last_index = urg->last_data_index;
+    urg->received_skip_step = 0;
+    return ret;
+}
 
 int urg_open(urg_t *urg, urg_connection_type_t connection_type,
              const char *device_or_address, long baudrate_or_port)
@@ -819,6 +1034,8 @@ int urg_open(urg_t *urg, urg_connection_type_t connection_type,
     if (ret == URG_NO_ERROR) {
         urg->is_active = URG_TRUE;
     }
+
+	safety_init_crc();
     return ret;
 }
 
@@ -1022,6 +1239,74 @@ int urg_start_measurement(urg_t *urg, urg_measurement_type_t type,
     return ret;
 }
 
+int safety_start_measurement(urg_t *urg, urg_measurement_type_t type, urg_measurement_mode_t mode)
+{
+	enum {
+		stx = 0x02,
+        stx_size = 1,
+		etx = 0x03,
+		etx_size = 1,
+        command_size = 4,
+		body_size = 4,
+        crc_size = 4,
+    };
+    char command [body_size + 1];
+	char buffer[BUFFER_SIZE];
+    int ret = 0;
+	unsigned short crc = 0;
+	int message_size = 0;
+
+    if (!urg->is_active) {
+        return set_errno_and_return(urg, URG_NOT_CONNECTED);
+    }
+
+    // \~japanese  指定されたタイプのパケットを生成し、送信する
+    // \~english Prepares and sends the measurement command according to the given type
+    switch (type) {
+    case URG_DISTANCE:
+        switch (mode){
+		case URG_HANDSHAKE:
+			snprintf(command, body_size, "AR00");
+			break;
+		case URG_CONTINUOUS:
+			snprintf(command, body_size, "AR02");
+			break;
+		}
+        break;
+
+    case URG_DISTANCE_INTENSITY:
+        switch (mode){
+		case URG_HANDSHAKE:
+			snprintf(command, body_size, "AR01");
+			break;
+		case URG_CONTINUOUS:
+			snprintf(command, body_size, "AR04");
+			break;
+		}
+        break;
+
+    case URG_STOP:
+    case URG_UNKNOWN:
+    default:
+        switch (mode){
+		case URG_CONTINUOUS:
+			snprintf(command, body_size, "AR03");
+			break;
+		}
+        break;
+    }
+	command[body_size] = '\0'; 
+
+	message_size = stx_size + command_size + body_size + crc_size + etx_size;
+
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%0*X%s", command_size, message_size, command);
+	crc = safety_calc_crc(buffer, command_size + body_size);
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%c%0*X%s%0*X%c", stx, command_size, message_size, command, crc_size, crc, etx);
+    ret = connection_write(&urg->connection, buffer, message_size);
+
+    return ret;
+}
+
 
 int urg_get_distance(urg_t *urg, long data[], long *time_stamp)
 {
@@ -1029,6 +1314,14 @@ int urg_get_distance(urg_t *urg, long data[], long *time_stamp)
         return set_errno_and_return(urg, URG_NOT_CONNECTED);
     }
     return receive_data(urg, data, NULL, time_stamp);
+}
+
+int safety_get_distance(urg_t *urg, long data[], safety_data_t *safety_data)
+{
+    if (!urg->is_active) {
+        return set_errno_and_return(urg, URG_NOT_CONNECTED);
+    }
+    return safety_receive_data(urg, data, NULL, safety_data);
 }
 
 
@@ -1041,6 +1334,17 @@ int urg_get_distance_intensity(urg_t *urg,
     }
 
     return receive_data(urg, data, intensity, time_stamp);
+}
+
+int safety_get_distance_intensity(urg_t *urg,
+                               long data[], unsigned short intensity[],
+                               safety_data_t *safety_data)
+{
+    if (!urg->is_active) {
+        return set_errno_and_return(urg, URG_NOT_CONNECTED);
+    }
+
+    return safety_receive_data(urg, data, intensity, safety_data);
 }
 
 
@@ -1098,6 +1402,40 @@ int urg_stop_measurement(urg_t *urg)
         }
     }
     return ret;
+}
+
+int safety_stop_measurement(urg_t *urg){
+	enum {
+		stx = 0x02,
+        stx_size = 1,
+		etx = 0x03,
+		etx_size = 1,
+        command_size = 4,
+		body_size = 4,
+        crc_size = 4,
+    };
+    char command [body_size + 1];
+	char buffer[BUFFER_SIZE];
+    int ret = 0;
+	unsigned short crc = 0;
+	int message_size = 0;
+
+    if (!urg->is_active) {
+        return set_errno_and_return(urg, URG_NOT_CONNECTED);
+    }
+
+	snprintf(command, body_size, "AR03");
+
+	command[body_size] = '\0'; 
+
+	message_size = stx_size + command_size + body_size + crc_size + etx_size;
+
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%0*X%s", command_size, message_size, command);
+	crc = safety_calc_crc(buffer, command_size + body_size);
+	snprintf(buffer, SAFETY_BUFFER_SIZE, "%c%0*X%s%0*X%c", stx, command_size, message_size, command, crc_size, crc, etx);
+    ret = connection_write(&urg->connection, buffer, message_size);
+
+	return ret;
 }
 
 

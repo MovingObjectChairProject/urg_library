@@ -32,7 +32,8 @@ enum {
 // \~english Checks wheter is is a EOL character
 static int is_linefeed(const char ch)
 {
-    return ((ch == '\r') || (ch == '\n')) ? 1 : 0;
+	enum { etx = 0x03 };
+    return ((ch == '\r') || (ch == '\n')) || (ch == etx)? 1 : 0;
 }
 
 

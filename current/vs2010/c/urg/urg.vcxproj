@@ -19,6 +19,7 @@
     <ClCompile Include="..\..\..\src\urg_serial_utils.c" />
     <ClCompile Include="..\..\..\src\urg_tcpclient.c" />
     <ClCompile Include="..\..\..\src\urg_utils.c" />
+    <ClCompile Include="safety_crc.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{269630A6-5F78-484F-A729-5CD301B5CABA}</ProjectGuid>

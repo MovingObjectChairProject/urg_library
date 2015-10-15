@@ -40,6 +40,17 @@ extern "C" {
         URG_UNKNOWN,             //!< \~japanese 不明  \~english Unknown measurement type
     } urg_measurement_type_t;
 
+	    /*!
+      \~japanese
+      \brief 計測モード
+      \~english
+      \brief Measurement modes
+    */
+    typedef enum {
+        URG_CONTINUOUS,			//!< \~japanese 垂れ流し  \~english Continuous
+        URG_HANDSHAKE,			//!< \~japanese ハンドシェーク  \~english Handshake
+    } urg_measurement_mode_t;
+
     /*!
       \~japanese
       \brief 距離を何 byte で表現するかの指定
@@ -109,6 +120,36 @@ extern "C" {
 
         char return_buffer[80];
     } urg_t;
+
+	/*!
+      \~japanese
+      \brief URG センサ管理
+
+      \~english
+      \brief URG sensor control structure
+    */
+    typedef struct
+    {
+        int is_setting;
+        int area_number;
+        int is_error_detected;
+		int error_code;
+		int is_lockout;
+		int is_ossd1_1_on;
+		int is_ossd1_2_on;
+		int is_warning1_1_on;
+		int is_warning1_2_on;
+		int is_warning2_1_on;
+		int is_warning2_2_on;
+		int is_ossd2_1_on;
+		int is_ossd2_2_on;
+		int is_mut_over1_on;
+		int is_mut_over2_on;
+		int is_reset_req1_on;
+		int is_reset_req2_on;
+		int encoder_speed;
+		long timestamp;
+    } safety_data_t;
 
 
     /*!
@@ -362,6 +403,73 @@ extern "C" {
     extern int urg_start_measurement(urg_t *urg, urg_measurement_type_t type,
                                      int scan_times, int skip_scan);
 
+	/*!
+      \~japanese
+      \brief 安全距離データの取得を開始
+
+      距離データの取得を開始します。実際のデータは safety_get_distance(), safety_get_distance_intensity() で取得できます。
+
+      \param[in,out] urg URG センサ管理
+      \param[in] type データ・タイプ
+      \param[in] mode データ・モード
+
+      \retval 0 正常
+      \retval <0 エラー
+
+      type には取得するデータの種類を指定します。
+
+      - #URG_DISTANCE ... 距離データ
+      - #URG_DISTANCE_INTENSITY ... 距離データと強度データ
+
+	  mode には取得モードを指定します。
+
+      - #URG_CONTINUOUS ... 垂れ流しモード
+      - #URG_HANDSHAKE ... ハンドシェークモード
+
+      \~english
+      \brief Start getting distance measurement data using safety protocol
+
+      Starts measurement data acquisition. The actual data can be retrieved using safety_get_distance(), safety_get_distance_intensity().
+
+      \param[in,out] urg URG control structure
+      \param[in] type Measurement type
+      \param[in] mode Measurement mode
+
+      \retval 0 Successful
+      \retval <0 Error
+
+      The following values are possible for the type argument
+
+      - #URG_DISTANCE ... Distance (range) data
+      - #URG_DISTANCE_INTENSITY ... Distance (range) and intensity (strength) data
+
+	  The following values are possible for the mode argument
+
+      - #URG_CONTINUOUS ... Continuous mode
+      - #URG_HANDSHAKE ... Handshake mode
+
+      \~
+      Example
+      \code
+	  enum { CAPTURE_TIMES = 10 };
+      safety_start_measurement(&urg, URG_DISTANCE, URG_CONTINUOUS);
+
+      for (i = 0; i < CAPTURE_TIMES; ++i) {
+      int n = safety_get_distance(&urg, data);
+
+      \~japanese
+      // 受信したデータの利用
+      \~english
+      // Processing of obtained data
+      \~
+      ...
+      } \endcode
+
+      \~
+      \see safety_get_distance(), safety_get_distance_intensity(), safety_stop_measurement()
+    */
+	extern int safety_start_measurement(urg_t *urg, urg_measurement_type_t type, urg_measurement_mode_t mode);
+
 
     /*!
       \~japanese
@@ -426,6 +534,8 @@ extern "C" {
     extern int urg_get_distance(urg_t *urg, long data[], long *time_stamp);
 
 
+	extern int safety_get_distance(urg_t *urg, long data[], safety_data_t *safety_data);
+
     /*!
       \~japanese
       \brief 距離と強度データの取得
@@ -483,6 +593,10 @@ extern "C" {
     extern int urg_get_distance_intensity(urg_t *urg, long data[],
                                           unsigned short intensity[],
                                           long *time_stamp);
+
+	extern int safety_get_distance_intensity(urg_t *urg, long data[],
+                                          unsigned short intensity[],
+                                          safety_data_t *safety_data);
 
 
     /*!
@@ -655,6 +769,8 @@ extern "C" {
       \see urg_start_measurement()
     */
     extern int urg_stop_measurement(urg_t *urg);
+
+	extern int safety_stop_measurement(urg_t *urg);
 
 
     /*!
