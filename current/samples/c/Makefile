@@ -13,7 +13,9 @@ LDLIBS = -lm `/bin/sh ld_wsock.sh` `/bin/sh ld_setupapi.sh`
 # Target
 TARGET = \
 	get_distance \
+	get_distance_safety \
 	get_distance_intensity \
+	get_distance_intensity_safety \
 	get_multiecho \
 	get_multiecho_intensity \
 	calculate_xy \
