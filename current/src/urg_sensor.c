@@ -135,7 +135,7 @@ static int scip_response(urg_t *urg, const char* command,
         if (line_number == 1) {
             if (n == 1) {
                 // \~japanese SCIP 1.1 応答の場合は、正常応答とみなす
-	        // \~english In case of SCIP1.1 it is always correct
+				// \~english In case of SCIP1.1 it is always correct
                 ret = 0;
 
             } else if (n != 3) {
@@ -836,13 +836,15 @@ static int safety_receive_data(urg_t *urg, long data[], unsigned short intensity
     };
     urg_measurement_type_t type;
     char buffer[SAFETY_BUFFER_SIZE];
-	char param[5];
+	char param[9];
 	char *data_buffer = 0;
     int ret = 0;
-    int n, i;
+    int n, i, cp;
 	unsigned short crc = 0;
     int extended_timeout = urg->timeout
         + 2 * (urg->scan_usec * (urg->scanning_skip_scan) / 1000);
+	int first_index = urg->first_data_index;
+	int last_index = urg->last_data_index;
 
     // \~japanese エコーバックの取得
     // \~english Gets the echoback
@@ -854,7 +856,7 @@ static int safety_receive_data(urg_t *urg, long data[], unsigned short intensity
 
 	buffer[n] = '\0';
 
-	if ((n < 10) || (buffer[0] != stx)) {
+	if ((n < body_size) || (buffer[0] != stx)) {
         return set_errno_and_return(urg, URG_INVALID_RESPONSE);
     }
 
@@ -888,6 +890,10 @@ static int safety_receive_data(urg_t *urg, long data[], unsigned short intensity
             return set_errno_and_return(urg, URG_INVALID_RESPONSE);
         }
     }
+
+	if(n <= body_offset + crc_size){
+		return 0;
+	}
 
 	safety_data->is_setting = buffer[body_offset] == '1' ? 1 : 0;
 
@@ -925,38 +931,46 @@ static int safety_receive_data(urg_t *urg, long data[], unsigned short intensity
 	param[4] = '\0';
 	safety_data->encoder_speed = strtol(param, NULL, 16);
 
-	data_buffer = &buffer[body_offset + 23 + 16];
+	strncpy(param, &buffer[body_offset +23], 8);
+	param[8] = '\0';
+	safety_data->timestamp = strtol(param, NULL, 16);
+
+	data_buffer = &buffer[body_offset + 31 + 8];
 
     // \~japanese データの取得
     // \~english Gets the measurement data
     switch (type) {
     case URG_DISTANCE:
     case URG_MULTIECHO:
-		for(i = 0; i < 1081; i++){
-			strncpy(param, &data_buffer[i*4], 4);
+		cp = 0;
+		for(i = first_index; i <= last_index; i++, cp++){
+			strncpy(param, data_buffer, 4);
 			param[4] = '\0';
-			data[i] = strtol(param, NULL, 16);
+			data[cp] = strtol(param, NULL, 16);
+			data_buffer += 4;
 		}
-		ret = 1081;
+		ret = cp;
         break;
 
     case URG_DISTANCE_INTENSITY:
     case URG_MULTIECHO_INTENSITY:
-		for(i = 0; i < 1081; i++){
+		cp = 0;
+		for(i = first_index; i <= last_index; i++, cp++){
 			strncpy(param, data_buffer, 4);
 			param[4] = '\0';
-			data[i] = strtol(param, NULL, 16);
+			data[cp] = strtol(param, NULL, 16);
 			data_buffer += 4;
 		}
 		if(intensity){
-			for(i = 0; i < 1081; i++){
+			cp = 0;
+			for(i = first_index; i <= last_index; i++, cp++){
 				strncpy(param, data_buffer, 4);
 				param[4] = '\0';
-				intensity[i] = strtol(param, NULL, 16);
+				intensity[cp] = strtol(param, NULL, 16);
 				data_buffer += 4;
 			}
 		}
-		ret = 1081;
+		ret = cp;
         break;
 
     case URG_STOP:

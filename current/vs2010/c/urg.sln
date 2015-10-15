@@ -19,6 +19,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sync_time_stamp", "sync_tim
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "find_port", "find_port\find_port.vcxproj", "{B1E1DC1F-F6C1-4A11-8A7D-D30E0211A18E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "get_distance_safety", "get_distance_safety\get_distance_safety.vcxproj", "{25DC3F6C-3550-4026-BBCB-85B5E5A33E93}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "get_distance_intensity_safety", "get_distance_intensity_safety\get_distance_intensity_safety.vcxproj", "{6F3E2FB2-CBF1-463A-8814-19CB177B8735}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -61,6 +65,14 @@ Global
 		{B1E1DC1F-F6C1-4A11-8A7D-D30E0211A18E}.Debug|Win32.Build.0 = Debug|Win32
 		{B1E1DC1F-F6C1-4A11-8A7D-D30E0211A18E}.Release|Win32.ActiveCfg = Release|Win32
 		{B1E1DC1F-F6C1-4A11-8A7D-D30E0211A18E}.Release|Win32.Build.0 = Release|Win32
+		{25DC3F6C-3550-4026-BBCB-85B5E5A33E93}.Debug|Win32.ActiveCfg = Debug|Win32
+		{25DC3F6C-3550-4026-BBCB-85B5E5A33E93}.Debug|Win32.Build.0 = Debug|Win32
+		{25DC3F6C-3550-4026-BBCB-85B5E5A33E93}.Release|Win32.ActiveCfg = Release|Win32
+		{25DC3F6C-3550-4026-BBCB-85B5E5A33E93}.Release|Win32.Build.0 = Release|Win32
+		{6F3E2FB2-CBF1-463A-8814-19CB177B8735}.Debug|Win32.ActiveCfg = Debug|Win32
+		{6F3E2FB2-CBF1-463A-8814-19CB177B8735}.Debug|Win32.Build.0 = Debug|Win32
+		{6F3E2FB2-CBF1-463A-8814-19CB177B8735}.Release|Win32.ActiveCfg = Release|Win32
+		{6F3E2FB2-CBF1-463A-8814-19CB177B8735}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
