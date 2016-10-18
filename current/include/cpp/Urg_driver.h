@@ -4,7 +4,7 @@
 /*!
   \file
   \~japanese
-  \brief URG ƒhƒ‰ƒCƒo
+  \brief URG ï¿½hï¿½ï¿½ï¿½Cï¿½o
   \~english
   \brief URG driver
   \~
@@ -19,7 +19,7 @@
 
 namespace qrk
 {
-    //! \~japanese URG ƒhƒ‰ƒCƒo  \~english URG driver
+    //! \~japanese URG ï¿½hï¿½ï¿½ï¿½Cï¿½o  \~english URG driver
     class Urg_driver : public Lidar
     {
     public:
@@ -53,12 +53,12 @@ namespace qrk
         void wakeup(void);
         bool is_stable(void);
 
-        //! \~japanese ƒf[ƒ^æ“¾‚ÌŠJn  \~english Starts data measurement process
+        //! \~japanese ï¿½fï¿½[ï¿½^ï¿½æ“¾ï¿½ÌŠJï¿½n  \~english Starts data measurement process
         bool start_measurement(measurement_type_t type = Distance,
                                int scan_times = Infinity_times,
                                int skip_scan = 0);
 
-        //! \~japanese óMƒf[ƒ^‚Ìó‚¯æ‚è  \~english Receives measurement data
+        //! \~japanese ï¿½ï¿½Mï¿½fï¿½[ï¿½^ï¿½Ìó‚¯ï¿½ï¿½  \~english Receives measurement data
         bool get_distance(std::vector<long>& data, long *time_stamp = NULL);
         bool get_distance_intensity(std::vector<long>& data,
                                     std::vector<unsigned short>& intensity,
@@ -75,14 +75,14 @@ namespace qrk
         bool set_scanning_parameter(int first_step, int last_step,
                                     int skip_step = 1);
 
-        //! \~japanese ƒf[ƒ^æ“¾‚Ì’†’f  \~english Stops data measurement process
+        //! \~japanese ï¿½fï¿½[ï¿½^ï¿½æ“¾ï¿½Ì’ï¿½ï¿½f  \~english Stops data measurement process
         void stop_measurement(void);
 
-        //! \~japanese ƒ^ƒCƒ€ƒXƒ^ƒ“ƒv‚Ì“¯Šú  \~english Synchronization of timestamps
+        //! \~japanese ï¿½^ï¿½Cï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½vï¿½Ì“ï¿½ï¿½ï¿½  \~english Synchronization of timestamps
         bool set_sensor_time_stamp(long time_stamp);
         long get_sensor_time_stamp(void);
 
-        //! \~japanese Šp“x•ÏŠ·  \~english Angle conversion functions
+        //! \~japanese ï¿½pï¿½xï¿½ÏŠï¿½  \~english Angle conversion functions
         double index2rad(int index) const;
         double index2deg(int index) const;
         int rad2index(double radian) const;
@@ -118,7 +118,7 @@ namespace qrk
         Urg_driver& operator = (const Urg_driver& rhs);
 
         struct pImpl;
-        std::auto_ptr<pImpl> pimpl;
+        std::unique_ptr<pImpl> pimpl;
     };
 }
 

@@ -1,7 +1,7 @@
 /*!
   \file
   \~japanese
-  \brief URG ƒZƒ“ƒT—p‚Ì•â•ŠÖ”
+  \brief URG ï¿½Zï¿½ï¿½ï¿½Tï¿½pï¿½Ì•â•ï¿½Öï¿½
   \~english
   \brief Auxiliary functions for the sensor
   \~
@@ -14,6 +14,11 @@
 #include "urg_errno.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
+
+#if defined(URG_WINDOWS_OS)
+#else
+#include <unistd.h>
+#endif
 
 #undef max
 #undef min
@@ -84,7 +89,7 @@ void urg_distance_min_max(const urg_t *urg,
 
     *min_distance = urg->min_distance;
 
-    // \~japanese urg_set_communication_data_size() ‚ğ”½‰f‚µ‚½‹——£‚ğ•Ô‚·
+    // \~japanese urg_set_communication_data_size() ï¿½ğ”½‰fï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½
     // \~english returns the size configured with urg_set_communication_data_size()
     *max_distance =
         (urg->range_data_byte == URG_COMMUNICATION_2_BYTE) ?
